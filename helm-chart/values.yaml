@@ -1,0 +1,11 @@
+replicaCount: 2
+
+image:
+  repository: myacrregistry.azurecr.io/my-demo-app # Ungal ACR URL-ai mathikonga
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 3000
