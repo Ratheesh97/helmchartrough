@@ -1,0 +1,56 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  dockerRegistryServiceConnection: 'my-acr-connection' # Azure DevOps Service Connection peyar
+  imageRepository: 'my-demo-app'
+  containerRegistry: 'myacrregistry.azurecr.io' # Ungal ACR login server
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+  aksServiceConnection: 'my-aks-connection' # Ungal AKS Service Connection peyar
+  namespace: 'default'
+
+stages:
+  - stage: BuildAndPush
+    displayName: 'Build and Push Docker Image'
+    jobs:
+      - job: Build
+        steps:
+          - task: Docker@2
+            displayName: 'Build and push image to ACR'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+
+  - stage: DeployWithHelm
+    displayName: 'Deploy to AKS using Helm'
+    dependsOn: BuildAndPush
+    jobs:
+      - job: Deploy
+        steps:
+          - task: HelmInstaller@1
+            displayName: 'Install Helm'
+            inputs:
+              helmVersionToInstall: 'latest'
+
+          - task: HelmDeploy@0
+            displayName: 'Helm Upgrade / Install'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: $(aksServiceConnection)
+              namespace: $(namespace)
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: '$(Build.SourcesDirectory)/helm-chart'
+              releaseName: 'demo-release'
+              overrideValues: |
+                image.repository=$(containerRegistry)/$(imageRepository)
+                image.tag=$(tag)
+              install: true
